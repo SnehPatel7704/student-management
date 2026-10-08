@@ -34,11 +34,11 @@ export default function Header({ apiStatus, onRefresh }) {
           <div className="relative">
             <button aria-expanded={showProfile} className="flex items-center gap-2 rounded-lg p-1 text-left transition hover:bg-slate-50" onClick={() => { setShowProfile(!showProfile); setShowNotifications(false) }} type="button">
               <span className="grid size-8 place-items-center rounded-full bg-[#e8eaf7] text-[11px] font-bold text-[#465381]">AD</span>
-              <span className="hidden sm:block"><span className="block text-xs font-semibold leading-4 text-slate-800">Alex Morgan</span><span className="block text-[10px] leading-4 text-slate-500">Administrator</span></span>
+              <span className="hidden sm:block"><span className="block text-xs font-semibold leading-4 text-slate-800">Sneh Patel</span><span className="block text-[10px] leading-4 text-slate-500">Administrator</span></span>
               <ChevronDown className="hidden text-slate-400 sm:block" size={14} />
             </button>
             {showProfile && <div className="absolute right-0 top-11 z-40 w-56 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-              <p className="text-xs font-semibold text-slate-900">Alex Morgan</p>
+              <p className="text-xs font-semibold text-slate-900">Sneh Patel</p>
               <p className="mt-1 text-[11px] text-slate-500">admin@campusdesk.edu</p>
               <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500"><HelpCircle size={14} /> Campus administrator</div>
             </div>}

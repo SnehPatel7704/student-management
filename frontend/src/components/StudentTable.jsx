@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, UserRound, Eye, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Download, Eye, MoreHorizontal, Pencil, Plus, Search, SlidersHorizontal, Trash2, UserRound } from 'lucide-react'
 
 const avatarTones = [
   'bg-cyan-50 text-cyan-800', 'bg-amber-50 text-amber-800', 'bg-violet-50 text-violet-800',
@@ -32,7 +32,10 @@ function EmptyState({ hasFilters, onReset }) {
 
 export default function StudentTable({
   students, loading, page, pageSize, totalResults, selectedIds,
-  hasFilters, onPage, onToggleStudent, onTogglePage, onView, onEdit, onDelete, onResetFilters,
+  hasFilters, search, selectedCourse, courses, sort,
+  onSearch, onCourse, onSort, onPage, onToggleStudent, onTogglePage,
+  onView, onEdit, onDelete, onResetFilters, onExport, onAdd,
+  onDeleteSelected, selectedCount,
 }) {
   const [openMenu, setOpenMenu] = useState(null)
   const pageCount = Math.max(1, Math.ceil(totalResults / pageSize))
@@ -40,12 +43,39 @@ export default function StudentTable({
   const lastResult = Math.min(page * pageSize, totalResults)
   const allPageSelected = students.length > 0 && students.every((student) => selectedIds.has(student._id))
   return <>
+    <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <label className="relative min-w-[210px] flex-1 sm:max-w-[330px]">
+            <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+            <span className="sr-only">Search students</span>
+            <input className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-cyan-700 focus:bg-white focus:ring-2 focus:ring-cyan-700/10" onChange={(event) => onSearch(event.target.value)} placeholder="Search name, email, course..." type="search" value={search} />
+          </label>
+          <div aria-label="Filter by course" className="flex max-w-full gap-1 overflow-x-auto pb-0.5">
+            {['All courses', ...courses].map((course) => <button aria-pressed={selectedCourse === course} className={`shrink-0 rounded-full px-3 py-2 text-[10px] font-medium transition ${selectedCourse === course ? 'bg-cyan-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} key={course} onClick={() => onCourse(course)} type="button">{course}</button>)}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="sr-only" htmlFor="table-student-sort">Sort students</label>
+          <select className="h-9 min-w-[143px] rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-600 outline-none focus:border-cyan-700 focus:ring-2 focus:ring-cyan-700/10" id="table-student-sort" onChange={(event) => onSort(event.target.value)} value={sort}>
+            <option value="date-desc">Recently added</option><option value="name-asc">Name A–Z</option><option value="name-desc">Name Z–A</option><option value="age-asc">Age: low to high</option><option value="age-desc">Age: high to low</option>
+          </select>
+          <button className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50" onClick={onExport} type="button"><Download size={14} /> <span className="hidden sm:inline">Export CSV</span></button>
+          {selectedCount > 0 && <button className="inline-flex h-9 items-center gap-2 rounded-lg border border-rose-200 px-3 text-[11px] font-medium text-rose-700 transition hover:bg-rose-50" onClick={onDeleteSelected} type="button"><Trash2 size={14} />Delete ({selectedCount})</button>}
+          <button className="inline-flex h-9 items-center gap-2 rounded-lg bg-cyan-900 px-3.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-cyan-800" onClick={onAdd} type="button"><Plus size={15} />Add student</button>
+        </div>
+      </div>
+    </div>
     <div className="overflow-x-auto">
       <table className="w-full min-w-[740px] border-collapse text-left">
         <thead className="bg-slate-50/80">
           <tr className="border-y border-slate-100 text-[9px] font-semibold tracking-[0.1em] text-slate-500">
             <th className="w-10 px-4 py-3 sm:px-5"><input aria-label="Select all students on this page" checked={allPageSelected} className="size-3.5 accent-cyan-800" onChange={() => onTogglePage(students)} type="checkbox" /></th>
-            <th className="px-2 py-3">STUDENT</th><th className="px-3 py-3">COURSE</th><th className="px-3 py-3">AGE</th><th className="px-3 py-3">DATE ADDED</th><th aria-label="Actions" className="w-16 px-4 py-3" scope="col" />
+            <th className="px-2 py-3">STUDENT</th>
+            <th className="px-3 py-3">COURSE</th>
+            <th className="px-3 py-3"><button className="inline-flex items-center gap-1 transition hover:text-cyan-900" onClick={() => onSort(sort === 'age-asc' ? 'age-desc' : 'age-asc')} type="button">AGE <SlidersHorizontal size={10} /></button></th>
+            <th className="px-3 py-3"><button className="inline-flex items-center gap-1 transition hover:text-cyan-900" onClick={() => onSort(sort === 'date-desc' ? 'date-asc' : 'date-desc')} type="button">DATE ADDED <SlidersHorizontal size={10} /></button></th>
+            <th aria-label="Actions" className="w-16 px-4 py-3" scope="col" />
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
