@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react'
 import { X, UserRoundPlus, LoaderCircle } from 'lucide-react'
 
-const EMPTY_FORM = { name: '', email: '', course: '', age: '' }
+const EMPTY_FORM = { name: '', email: '', course: '', program: '', academicYear: '', semester: '', division: '', department: '', age: '' }
 
 export default function StudentModal({ student, saving, onClose, onSubmit }) {
-  const [form, setForm] = useState(student ? { name: student.name, email: student.email, course: student.course, age: String(student.age) } : EMPTY_FORM)
+  const [form, setForm] = useState(student ? {
+    ...EMPTY_FORM,
+    name: student.name,
+    email: student.email,
+    course: student.course,
+    program: student.program || '',
+    academicYear: student.academicYear || '',
+    semester: student.semester || '',
+    division: student.division || '',
+    department: student.department || '',
+    age: String(student.age),
+  } : EMPTY_FORM)
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
@@ -21,6 +32,11 @@ export default function StudentModal({ student, saving, onClose, onSubmit }) {
     else if (form.name.trim().length > 80) nextErrors.name = 'Name must be 80 characters or fewer.'
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) nextErrors.email = 'Enter a valid RFC 5322-style email address.'
     if (!form.course.trim()) nextErrors.course = 'Enter a course name.'
+    if (!student) {
+      for (const field of ['program', 'academicYear', 'semester', 'division', 'department']) {
+        if (!form[field].trim()) nextErrors[field] = 'Class assignment is required for new students.'
+      }
+    }
     const age = Number(form.age)
     if (!Number.isInteger(age) || age < 1 || age > 120) nextErrors.age = 'Age must be a whole number from 1 to 120.'
     setErrors(nextErrors)
@@ -34,6 +50,11 @@ export default function StudentModal({ student, saving, onClose, onSubmit }) {
       name: form.name.trim(),
       email: form.email.trim().toLowerCase(),
       course: form.course.trim(),
+      program: form.program.trim(),
+      academicYear: form.academicYear.trim(),
+      semester: form.semester.trim(),
+      division: form.division.trim(),
+      department: form.department.trim(),
       age: Number(form.age),
     })
     if (saved) onClose()
@@ -59,9 +80,16 @@ export default function StudentModal({ student, saving, onClose, onSubmit }) {
       </div>
       <form className="flex min-h-[calc(100%-124px)] flex-col px-6 py-6 sm:px-8" noValidate onSubmit={handleSubmit}>
         <div className="space-y-5">
-          <label className="block text-xs font-semibold text-slate-700" htmlFor="student-name">Full name<input autoComplete="name" className={inputClass('name')} id="student-name" maxLength="80" minLength="1" onBlur={(event) => normalizeField('name')} onChange={(event) => updateField('name', event.target.value)} placeholder="e.g. Rahul Sharma" required value={form.name} />{errors.name && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.name}</span>}</label>
-          <label className="block text-xs font-semibold text-slate-700" htmlFor="student-email">Email address<input autoComplete="email" className={inputClass('email')} id="student-email" maxLength="254" onBlur={(event) => normalizeField('email')} onChange={(event) => updateField('email', event.target.value)} pattern="^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$" placeholder="name@college.edu" required type="email" value={form.email} />{errors.email && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.email}</span>}</label>
+          <label className="block text-xs font-semibold text-slate-700" htmlFor="student-name">Full name<input autoComplete="name" className={inputClass('name')} id="student-name" maxLength="80" minLength="1" onBlur={() => normalizeField('name')} onChange={(event) => updateField('name', event.target.value)} placeholder="e.g. Rahul Sharma" required value={form.name} />{errors.name && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.name}</span>}</label>
+          <label className="block text-xs font-semibold text-slate-700" htmlFor="student-email">Email address<input autoComplete="email" className={inputClass('email')} id="student-email" maxLength="254" onBlur={() => normalizeField('email')} onChange={(event) => updateField('email', event.target.value)} pattern="^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$" placeholder="name@college.edu" required type="email" value={form.email} />{errors.email && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.email}</span>}</label>
           <label className="block text-xs font-semibold text-slate-700" htmlFor="student-course">Course<input className={inputClass('course')} id="student-course" maxLength="80" onChange={(event) => updateField('course', event.target.value)} placeholder="e.g. MCA" required value={form.course} />{errors.course && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.course}</span>}</label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-xs font-semibold text-slate-700" htmlFor="student-program">Program<input className={inputClass('program')} id="student-program" maxLength="80" onChange={(event) => updateField('program', event.target.value)} placeholder="e.g. MCA" required={!student} value={form.program} />{errors.program && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.program}</span>}</label>
+            <label className="block text-xs font-semibold text-slate-700" htmlFor="student-department">Department<input className={inputClass('department')} id="student-department" maxLength="80" onChange={(event) => updateField('department', event.target.value)} placeholder="e.g. Computer Science" required={!student} value={form.department} />{errors.department && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.department}</span>}</label>
+            <label className="block text-xs font-semibold text-slate-700" htmlFor="student-year">Academic year<input className={inputClass('academicYear')} id="student-year" maxLength="30" onChange={(event) => updateField('academicYear', event.target.value)} placeholder="e.g. SY" required={!student} value={form.academicYear} />{errors.academicYear && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.academicYear}</span>}</label>
+            <label className="block text-xs font-semibold text-slate-700" htmlFor="student-semester">Semester<input className={inputClass('semester')} id="student-semester" maxLength="30" onChange={(event) => updateField('semester', event.target.value)} placeholder="e.g. Semester 3" required={!student} value={form.semester} />{errors.semester && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.semester}</span>}</label>
+            <label className="block text-xs font-semibold text-slate-700" htmlFor="student-division">Division<input className={inputClass('division')} id="student-division" maxLength="30" onChange={(event) => updateField('division', event.target.value)} placeholder="e.g. D" required={!student} value={form.division} />{errors.division && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.division}</span>}</label>
+          </div>
           <label className="block text-xs font-semibold text-slate-700" htmlFor="student-age">Age<input className={inputClass('age')} id="student-age" max="120" min="1" onChange={(event) => updateField('age', event.target.value)} placeholder="1–120" required step="1" type="number" value={form.age} />{errors.age && <span className="mt-1 block text-[10px] font-normal text-rose-600">{errors.age}</span>}</label>
         </div>
         <div className="mt-auto flex gap-2 border-t border-slate-100 pt-6">

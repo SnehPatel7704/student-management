@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { ChevronDown, ChevronLeft, ChevronRight, Download, Eye, MoreHorizontal, Pencil, Plus, Search, SlidersHorizontal, Trash2, UserRound } from 'lucide-react'
+import usePermissions from '../hooks/usePermissions'
 
 const avatarTones = [
   'bg-cyan-50 text-cyan-800', 'bg-amber-50 text-amber-800', 'bg-violet-50 text-violet-800',
@@ -9,6 +10,17 @@ const courseTones = ['bg-cyan-50 text-cyan-800', 'bg-violet-50 text-violet-800',
 
 function initials(name = '') {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'
+}
+
+function studentClassLabel(student) {
+  const values = [
+    student.department || student.course,
+    student.program && student.program !== student.course ? student.program : '',
+    student.academicYear,
+    student.semester,
+    student.division ? `Division ${student.division}` : '',
+  ].filter(Boolean)
+  return values.join(' · ') || 'Unassigned class'
 }
 
 function SkeletonRows() {
@@ -32,12 +44,14 @@ function EmptyState({ hasFilters, onReset }) {
 
 export default function StudentTable({
   students, loading, page, pageSize, totalResults, selectedIds,
-  hasFilters, search, selectedCourse, courses, sort,
-  onSearch, onCourse, onSort, onPage, onToggleStudent, onTogglePage,
+  hasFilters, search, selectedCourse, classFilter = 'all', courses, sort,
+  onSearch, onCourse, onClassFilter, onSort, onPage, onToggleStudent, onTogglePage,
   onView, onEdit, onDelete, onResetFilters, onExport, onAdd,
   onDeleteSelected, selectedCount,
 }) {
   const [openMenu, setOpenMenu] = useState(null)
+  const permissions = usePermissions()
+  const canManage = permissions.includes('*') || permissions.includes('students.manage')
   const pageCount = Math.max(1, Math.ceil(totalResults / pageSize))
   const firstResult = totalResults ? (page - 1) * pageSize + 1 : 0
   const lastResult = Math.min(page * pageSize, totalResults)
@@ -52,8 +66,9 @@ export default function StudentTable({
             <input className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-cyan-700 focus:bg-white focus:ring-2 focus:ring-cyan-700/10" onChange={(event) => onSearch(event.target.value)} placeholder="Search name, email, course..." type="search" value={search} />
           </label>
           <div aria-label="Filter by course" className="flex max-w-full gap-1 overflow-x-auto pb-0.5">
-            {['All courses', ...courses].map((course) => <button aria-pressed={selectedCourse === course} className={`shrink-0 rounded-full px-3 py-2 text-[10px] font-medium transition ${selectedCourse === course ? 'bg-cyan-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} key={course} onClick={() => onCourse(course)} type="button">{course}</button>)}
+            {['All courses', ...new Set(courses.filter((course) => course !== 'All courses'))].map((course) => <button aria-pressed={selectedCourse === course} className={`shrink-0 rounded-full px-3 py-2 text-[10px] font-medium transition ${selectedCourse === course ? 'bg-cyan-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} key={course} onClick={() => onCourse(course)} type="button">{course}</button>)}
           </div>
+          <button aria-pressed={classFilter === 'unassigned'} className={`shrink-0 rounded-full px-3 py-2 text-[10px] font-medium transition ${classFilter === 'unassigned' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} onClick={() => onClassFilter?.(classFilter === 'unassigned' ? 'all' : 'unassigned')} type="button">Needs class details</button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor="table-student-sort">Sort students</label>
@@ -61,8 +76,8 @@ export default function StudentTable({
             <option value="date-desc">Recently added</option><option value="name-asc">Name A–Z</option><option value="name-desc">Name Z–A</option><option value="age-asc">Age: low to high</option><option value="age-desc">Age: high to low</option>
           </select>
           <button className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50" onClick={onExport} type="button"><Download size={14} /> <span className="hidden sm:inline">Export CSV</span></button>
-          {selectedCount > 0 && <button className="inline-flex h-9 items-center gap-2 rounded-lg border border-rose-200 px-3 text-[11px] font-medium text-rose-700 transition hover:bg-rose-50" onClick={onDeleteSelected} type="button"><Trash2 size={14} />Delete ({selectedCount})</button>}
-          <button className="inline-flex h-9 items-center gap-2 rounded-lg bg-cyan-900 px-3.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-cyan-800" onClick={onAdd} type="button"><Plus size={15} />Add student</button>
+          {canManage && selectedCount > 0 && <button className="inline-flex h-9 items-center gap-2 rounded-lg border border-rose-200 px-3 text-[11px] font-medium text-rose-700 transition hover:bg-rose-50" onClick={onDeleteSelected} type="button"><Trash2 size={14} />Delete ({selectedCount})</button>}
+          {canManage && <button className="inline-flex h-9 items-center gap-2 rounded-lg bg-cyan-900 px-3.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-cyan-800" onClick={onAdd} type="button"><Plus size={15} />Add student</button>}
         </div>
       </div>
     </div>
@@ -70,7 +85,7 @@ export default function StudentTable({
       <table className="w-full min-w-[740px] border-collapse text-left">
         <thead className="bg-slate-50/80">
           <tr className="border-y border-slate-100 text-[9px] font-semibold tracking-[0.1em] text-slate-500">
-            <th className="w-10 px-4 py-3 sm:px-5"><input aria-label="Select all students on this page" checked={allPageSelected} className="size-3.5 accent-cyan-800" onChange={() => onTogglePage(students)} type="checkbox" /></th>
+            <th className="w-10 px-4 py-3 sm:px-5">{canManage && <input aria-label="Select all students on this page" checked={allPageSelected} className="size-3.5 accent-cyan-800" onChange={() => onTogglePage(students)} type="checkbox" />}</th>
             <th className="px-2 py-3">STUDENT</th>
             <th className="px-3 py-3">COURSE</th>
             <th className="px-3 py-3"><button className="inline-flex items-center gap-1 transition hover:text-cyan-900" onClick={() => onSort(sort === 'age-asc' ? 'age-desc' : 'age-asc')} type="button">AGE <SlidersHorizontal size={10} /></button></th>
@@ -79,8 +94,16 @@ export default function StudentTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {loading ? <SkeletonRows /> : students.length === 0 ? <EmptyState hasFilters={hasFilters} onReset={onResetFilters} /> : students.map((student, index) => <tr className="group transition-colors hover:bg-slate-50/70" key={student._id}>
-            <td className="px-4 py-3.5 sm:px-5"><input aria-label={`Select ${student.name}`} checked={selectedIds.has(student._id)} className="size-3.5 accent-cyan-800" onChange={() => onToggleStudent(student._id)} type="checkbox" /></td>
+          {loading ? <SkeletonRows /> : students.length === 0 ? <EmptyState hasFilters={hasFilters} onReset={onResetFilters} /> : Object.entries(students.reduce((groups, student) => {
+            const label = studentClassLabel(student)
+            groups[label] = [...(groups[label] || []), student]
+            return groups
+          }, {})).map(([classLabel, classStudents]) => <Fragment key={classLabel}>
+            <tr className="bg-slate-50/80">
+              <td className="px-4 py-2.5" colSpan="6"><span className="text-[10px] font-bold uppercase tracking-wide text-cyan-900">{classLabel}</span><span className="ml-2 text-[10px] text-slate-500">{classStudents.length} student{classStudents.length === 1 ? '' : 's'}</span></td>
+            </tr>
+            {classStudents.map((student, index) => <tr className="group transition-colors hover:bg-slate-50/70" key={student._id}>
+            <td className="px-4 py-3.5 sm:px-5">{canManage && <input aria-label={`Select ${student.name}`} checked={selectedIds.has(student._id)} className="size-3.5 accent-cyan-800" onChange={() => onToggleStudent(student._id)} type="checkbox" />}</td>
             <td className="px-2 py-3.5"><div className="flex min-w-0 items-center gap-3">
               <span className={`grid size-9 shrink-0 place-items-center rounded-full font-['Manrope'] text-[10px] font-bold ${avatarTones[index % avatarTones.length]}`}>{initials(student.name)}</span>
               <span className="min-w-0"><span className="block truncate text-xs font-semibold text-slate-800">{student.name}</span><span className="mt-1 block truncate text-[10px] text-slate-500">{student.email}</span></span>
@@ -94,12 +117,13 @@ export default function StudentTable({
                 <button aria-label="Close row actions" className="fixed inset-0 z-10 cursor-default" onClick={() => setOpenMenu(null)} type="button" />
                 <div className="absolute right-6 top-11 z-20 w-40 rounded-xl border border-slate-200 bg-white p-1.5 text-left shadow-xl">
                   <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[11px] text-slate-600 hover:bg-slate-50" onClick={() => { setOpenMenu(null); onView(student) }} type="button"><Eye size={14} />View details</button>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[11px] text-slate-600 hover:bg-slate-50" onClick={() => { setOpenMenu(null); onEdit(student) }} type="button"><Pencil size={14} />Edit student</button>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[11px] text-rose-700 hover:bg-rose-50" onClick={() => { setOpenMenu(null); onDelete([student]) }} type="button"><Trash2 size={14} />Delete student</button>
+                  {canManage && <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[11px] text-slate-600 hover:bg-slate-50" onClick={() => { setOpenMenu(null); onEdit(student) }} type="button"><Pencil size={14} />Edit student</button>}
+                  {canManage && <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[11px] text-rose-700 hover:bg-rose-50" onClick={() => { setOpenMenu(null); onDelete([student]) }} type="button"><Trash2 size={14} />Delete student</button>}
                 </div>
               </>}
             </td>
           </tr>)}
+          </Fragment>)}
         </tbody>
       </table>
     </div>

@@ -7,56 +7,38 @@ Campusdesk is a full-stack student management and academic operations platform b
 ```text
 student-management/
 ├── backend/
-│   ├── controllers/erpController.js
-│   ├── models/
-│   │   ├── Student.js
-│   │   ├── Course.js
-│   │   ├── Instructor.js
-│   │   ├── Internship.js
-│   │   ├── Attendance.js
-│   │   ├── Club.js
-│   │   ├── Book.js
-│   │   ├── BorrowRecord.js
-│   │   └── ExamResult.js
-│   ├── routes/erpRoutes.js
-│   ├── scripts/verify-api.sh
+│   ├── auth/                 # Role permissions
+│   ├── controllers/          # Auth, ERP, and user handlers
+│   ├── middleware/           # Authentication and authorization
+│   ├── models/               # MongoDB/Mongoose models
+│   ├── routes/               # Auth, ERP, and user routes
+│   ├── scripts/              # Account, migration, and verification scripts
+│   ├── .env.example
+│   ├── package.json
 │   └── server.js
 └── frontend/
     ├── src/
     │   ├── App.jsx
-    │   ├── components/
-    │   │   ├── AnalyticsDashboard.jsx
-    │   │   ├── AttendanceTracker.jsx
-    │   │   ├── ClubDirectory.jsx
-    │   │   ├── CoursesView.jsx
-    │   │   ├── CSVImportModal.jsx
-    │   │   ├── EntityFormModal.jsx
-    │   │   ├── GradesView.jsx
-    │   │   ├── InstructorsView.jsx
-    │   │   ├── InternshipBoard.jsx
-    │   │   ├── LibraryView.jsx
-    │   │   ├── Navigation.jsx
-    │   │   ├── StudentModal.jsx
-    │   │   └── StudentTable.jsx
+    │   ├── components/       # ERP views, login, portal, and user management
+    │   ├── hooks/
     │   └── services/api.js
     ├── package.json
-    ├── vite.config.js
-    └── eslint.config.js
+    └── vite.config.js
 ```
 
-The React application owns UI state and orchestration in `App.jsx`. API requests are centralized in `services/api.js`, while Express separates persistence models from HTTP handlers and routes.
+The React application owns UI state and orchestration in `App.jsx`. API requests and bearer-token handling are centralized in `services/api.js`; the Express backend separates authentication, permissions, persistence models, handlers, and routes.
 
 ## Modules
 
 1. **Students** — create, view, edit, delete, search, filter, sort, paginate, bulk import, and bulk delete.
 2. **Analytics** — course distribution, age groups, and monthly enrollment aggregation.
-3. **Courses** — catalog, capacity, credits, department, and instructor assignment.
+3. **Courses & lectures** — course catalog, schedules, capacity, credits, instructor assignment, and lecture attendance.
 4. **Instructors** — faculty roster and contact information.
 5. **Internships** — opportunities, status, deadlines, and student applications.
-6. **Attendance** — daily attendance records and percentage calculations.
+6. **Attendance & grades** — daily and lecture attendance, marks, GPA, and SGPA reporting.
 7. **Clubs** — club directory, coordinator, category, and membership.
 8. **Library** — book inventory, availability, issue, return, and borrowing history.
-9. **Grades** — marks, letter grades, GPA, and SGPA reporting.
+9. **Accounts & portal** — role-based access, super-admin account management, and linked student/parent portals.
 
 ## Features
 
@@ -70,6 +52,25 @@ The React application owns UI state and orchestration in `App.jsx`. API requests
 - Responsive modular React views
 - Toast notifications and API error handling
 - Reusable create forms for courses, instructors, internships, clubs, and books
+- JWT login and server-enforced role permissions
+- Role-based user management and linked student/parent portals
+
+## Roles and access
+
+Protected ERP requests require a bearer token. The backend enforces permissions for each request; the UI also hides actions the current role cannot use.
+
+| Role | Summary |
+| --- | --- |
+| Super admin | All ERP permissions and user account administration |
+| Admin | Full ERP operations, without user account administration |
+| Director | Read access across modules, with analytics and student management |
+| Head | Department-oriented student, course, attendance, and grade management |
+| Teacher | Read access to students and courses; attendance and grade management |
+| Student | Linked portal, course and library access, internship applications, and club membership |
+| Parent | Read-only linked portal and course/library access |
+| Guest | Read-only course, internship, club, and library access |
+
+Student and parent accounts must be linked to a student record; teacher accounts must be linked to an instructor record. Head and director accounts require a department. The development-only `dev` account is used to test application roles and cannot be used in production.
 
 ## Prerequisites
 
@@ -77,30 +78,37 @@ The React application owns UI state and orchestration in `App.jsx`. API requests
 - npm
 - MongoDB running locally at `127.0.0.1:27017`, or a reachable `MONGODB_URI`
 
-## Installation
+## Installation and configuration
+
+Install dependencies from the repository root:
 
 ```bash
-cd student-management/backend
-npm install
-
-cd ../frontend
-npm install
+npm --prefix backend install
+npm --prefix frontend install
 ```
 
-## Run locally
-
-Start the backend:
+Configure the backend environment:
 
 ```bash
-cd student-management/backend
-npm run dev
+cp backend/.env.example backend/.env
 ```
 
-Start the frontend in a second terminal:
+Set a unique `JWT_SECRET`, `SUPER_ADMIN_EMAIL`, and `SUPER_ADMIN_PASSWORD` in `backend/.env`. The password must be at least 10 characters. Set `MONGODB_URI` if MongoDB is not using the local default. Do not use development secrets or accounts in production.
+
+Create the first super-admin account after MongoDB is running:
 
 ```bash
-cd student-management/frontend
-npm run dev
+npm --prefix backend run create-super-admin
+```
+
+Start the backend and frontend in separate terminals from the repository root:
+
+```bash
+npm --prefix backend run dev
+```
+
+```bash
+npm --prefix frontend run dev
 ```
 
 The application is available at:
@@ -114,63 +122,84 @@ To configure a different backend URL, create a local `.env.local` file in the fr
 VITE_API_URL=http://localhost:5000
 ```
 
+## Development accounts
+
+To test roles locally, seed sample records and configure a development account in `backend/.env`:
+
+```bash
+npm --prefix backend run seed
+npm --prefix backend run create-dev-user
+```
+
+Set `DEV_USER_EMAIL` and `DEV_USER_PASSWORD` before creating the account. In development, sign in with it and use the role selector to switch roles. Development accounts and role switching are disabled in production.
+
+Run the role-permission checks after setting up the development account:
+
+```bash
+npm --prefix backend run verify-rbac
+```
+
 ## Backend API
 
-All API routes are mounted from `erpRoutes.js`. The application also exposes the same routes under `/api` for compatibility.
+Authentication routes are mounted at `/auth` (also `/api/auth`); development accounts also use `GET /auth/dev-options` and `POST /auth/dev-role` to test roles locally. User administration is mounted at `/users` (also `/api/users`) and is restricted to super admins. ERP routes are available both at the root and under `/api`. `/health` and login are public; all other ERP routes require `Authorization: Bearer <token>`.
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | GET | `/health` | Returns API and MongoDB status |
-| GET | `/students` | Lists students with pagination, search, filter, and sort |
-| POST | `/students` | Creates a student |
-| PUT | `/students/:id` | Updates a student |
-| DELETE | `/students/:id` | Deletes a student |
+| POST | `/auth/login` | Signs in and returns a JWT and user permissions |
+| GET | `/auth/me` | Returns the current authenticated user |
+| GET/POST/PUT/DELETE | `/users` and `/users/:id` | Super-admin user account management |
+| GET | `/portal` | Returns portal data for the linked student or parent |
+| GET/POST/PUT/DELETE | `/students` and `/students/:id` | Student records; list supports query and pagination |
 | POST | `/students/bulk-import` | Imports student records |
 | POST | `/students/bulk-delete` | Deletes student records by ID |
 | GET | `/students/analytics` | Returns student analytics |
-| GET/POST/DELETE | `/courses` and `/courses/:id` | Lists, creates, and deletes courses |
-| GET/POST/DELETE | `/instructors` and `/instructors/:id` | Lists, creates, and deletes instructors |
-| GET/POST | `/internships` | Lists and creates internships |
+| GET/POST/PUT/DELETE | `/courses` and `/courses/:id` | Course catalog management |
+| GET/POST/PUT/DELETE | `/instructors` and `/instructors/:id` | Instructor management |
+| GET/POST/PUT/DELETE | `/lectures` and `/lectures/:id` | Lecture schedule management |
+| GET/PUT | `/lectures/:id/attendance` | Reads or saves attendance for a lecture and date |
+| GET/POST/PUT/DELETE | `/internships` and `/internships/:id` | Internship opportunity management |
 | POST | `/internships/:id/apply` | Applies a student to an internship |
-| GET/POST | `/clubs` | Lists and creates clubs |
+| GET/POST/PUT/DELETE | `/clubs` and `/clubs/:id` | Club management |
 | POST | `/clubs/:id/join` | Joins a student to a club |
-| POST | `/attendance` | Logs attendance |
+| POST/PUT/DELETE | `/attendance` and `/attendance/:id` | Attendance record management |
 | GET | `/attendance/student/:id` | Returns attendance percentage and records |
-| POST | `/grades` | Records marks and grade |
+| POST/PUT/DELETE | `/grades` and `/grades/:id` | Grade record management |
 | GET | `/grades/student/:studentId` | Returns grades and GPA |
-| GET/POST | `/books` | Lists and creates books |
+| GET/POST/PUT/DELETE | `/books` and `/books/:id` | Library book catalog management |
 | POST | `/library/issue` | Issues a book |
 | POST | `/library/return/:recordId` | Returns a book |
 | GET | `/library/student/:studentId` | Returns student borrowing history |
 
-### Student creation
+### Authenticated API requests
+
+Log in with an account created through the UI or the super-admin setup above. The response contains a `token`; include it as a bearer token on protected requests:
+
+```bash
+curl -sS -X POST http://localhost:5000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"your-password"}'
+```
+
+Use the returned token as `TOKEN` in the following examples:
 
 ```bash
 curl -i -X POST http://localhost:5000/students \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{
-    "name": "Aarav Shah",
-    "email": "aarav@example.com",
-    "course": "Computer Science",
-    "age": 21
-  }'
+  -d '{"name":"Aarav Shah","email":"aarav@example.com","course":"Computer Science","age":21}'
 ```
 
-### Bulk student import and delete
+Bulk import and delete also require the token and a role with student-management permission:
 
 ```bash
-IMPORT_RESPONSE=$(curl -sS -X POST http://localhost:5000/students/bulk-import \
+curl -i -X POST http://localhost:5000/students/bulk-import \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"students":[{"name":"Runtime Test","email":"runtime-test@example.com","course":"CS101","age":22}]}')
-
-STUDENT_ID=$(printf '%s' "$IMPORT_RESPONSE" | node -e "let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{const r=JSON.parse(d); if(!r.inserted?.[0]) throw new Error('No inserted student was returned'); console.log(r.inserted[0]._id)})")
-
-curl -i -X POST http://localhost:5000/students/bulk-delete \
-  -H 'Content-Type: application/json' \
-  -d "{\"ids\":[\"$STUDENT_ID\"]}"
+  -d '{"students":[{"name":"Runtime Test","email":"runtime-test@example.com","course":"CS101","age":22}]}'
 ```
 
-The import response includes `insertedCount`, `failedCount`, `errors`, and the generated `inserted` records.
+The import response includes `insertedCount`, `failedCount`, `errors`, and the created records.
 
 ## Frontend service layer
 
@@ -178,6 +207,8 @@ All HTTP calls are centralized in `src/services/api.js`.
 
 Relevant services include:
 
+- `loginUser(credentials)`, `fetchCurrentUser()`, `fetchPortal()`
+- `fetchUsers()`, `createUser(data)`, `updateUser(id, data)`, `deleteUser(id)`
 - `fetchHealth()`
 - `fetchStudents(queryParams)`
 - `createStudent(data)`
@@ -188,13 +219,15 @@ Relevant services include:
 - `fetchStudentAnalytics()`
 - `fetchCourses()`, `createCourse(data)`, `deleteCourse(id)`
 - `fetchInstructors()`, `createInstructor(data)`, `deleteInstructor(id)`
+- `fetchLectures(params)`, `createLecture(data)`, `updateLecture(id, data)`, `deleteLecture(id)`
+- `fetchLectureAttendance(id, date)`, `saveLectureAttendance(id, data)`
 - `fetchInternships()`, `createInternship(data)`, `applyInternship(id, studentId)`
 - `fetchClubs()`, `createClub(data)`, `joinClub(id, studentId)`
-- `logAttendance(data)`
+- `logAttendance(data)`, `updateAttendance(id, data)`, `deleteAttendance(id)`
 - `fetchStudentAttendance(studentId)`
-- `recordGrade(data)`
+- `recordGrade(data)`, `updateGrade(id, data)`, `deleteGrade(id)`
 - `fetchStudentGrades(studentId)`
-- `fetchBooks()`, `createBook(data)`
+- `fetchBooks()`, `createBook(data)`, `updateBook(id, data)`, `deleteBook(id)`
 - `issueBook(data)`
 - `returnBook(recordId)`
 - `fetchStudentBorrows(studentId)`
@@ -205,6 +238,10 @@ Backend:
 
 - `PORT` — defaults to `5000`
 - `MONGODB_URI` — defaults to `mongodb://127.0.0.1:27017/collegeDB`
+- `JWT_SECRET` — signing secret; required in production
+- `SUPER_ADMIN_NAME`, `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD` — first super-admin provisioning
+- `DEV_USER_NAME`, `DEV_USER_EMAIL`, `DEV_USER_PASSWORD` — optional local development account
+- `DEV_DEFAULT_ROLE` — default role for a development account; defaults to `admin`
 
 Frontend:
 
@@ -214,28 +251,28 @@ Frontend:
 
 ```bash
 # Backend
-npm run dev
-npm start
+npm --prefix backend run dev
+npm --prefix backend start
+npm --prefix backend run seed
+npm --prefix backend run migrate:lecture-attendance-index
 
 # Frontend
-npm run dev
-npm run lint
-npm run build
-npm run preview
+npm --prefix frontend run dev
+npm --prefix frontend run lint
+npm --prefix frontend run build
+npm --prefix frontend run preview
 
 # Verify the live API
-cd student-management
-backend/scripts/verify-api.sh
+API_EMAIL=admin@example.com API_PASSWORD='your-password' bash backend/scripts/verify-api.sh
+npm --prefix backend run verify-rbac
 ```
 
-Run the complete verification from the project root:
+Check JavaScript syntax:
 
 ```bash
-npm --prefix student-management/frontend run lint
-npm --prefix student-management/frontend run build
-node --check student-management/backend/server.js
-node --check student-management/backend/controllers/erpController.js
-node --check student-management/backend/routes/erpRoutes.js
+node --check backend/server.js
+node --check backend/controllers/erpController.js
+node --check backend/routes/erpRoutes.js
 ```
 
 ## Validation and troubleshooting
@@ -243,8 +280,10 @@ node --check student-management/backend/routes/erpRoutes.js
 - Confirm MongoDB is running before starting the backend.
 - Confirm the backend responds at `http://localhost:5000/health`.
 - Confirm the frontend responds at `http://localhost:5173`.
+- Confirm protected API requests include a valid bearer token and the account has the required role permission.
 - Duplicate emails, invalid ObjectIds, and validation failures return descriptive HTTP errors.
 - Run the API verification script after changing the routes or models.
+- Run the RBAC verification script after changing authentication or permissions.
 - Run the frontend lint and production build before committing.
 
 ## Validation & Verification (V&V)
@@ -253,11 +292,10 @@ Campusdesk uses layered validation: client-side constraints provide immediate fe
 
 ### Run the API verification suite
 
-From the repository root, start MongoDB and the backend, then run:
+From the repository root, configure an account with student-management permissions, start MongoDB and the backend, then run:
 
 ```bash
-chmod +x backend/scripts/verify-api.sh
-./backend/scripts/verify-api.sh
+API_EMAIL=admin@example.com API_PASSWORD='your-password' bash backend/scripts/verify-api.sh
 ```
 
 The runner reports `[PASS]` and `[FAIL]` tags, prints the HTTP status and response body for each assertion, and exits with status `1` when any case fails. The suite uses an isolated runtime identifier and cleans up temporary response files automatically.
@@ -279,16 +317,17 @@ The runner reports `[PASS]` and `[FAIL]` tags, prints the HTTP status and respon
 
 ### Test coverage
 
-- **Positive:** health, database connectivity, student creation, query/pagination, and bulk delete.
+- **Positive:** public health, database connectivity, authenticated student creation, query/pagination, and bulk delete.
 - **Boundary:** student age `0` and `150`, duplicate email, maximum/minimum marks, and zero inventory availability.
-- **Negative:** malformed ObjectId, unmapped valid ObjectId, invalid email, missing required fields, duplicate records, and out-of-range numeric values.
+- **Negative:** anonymous access to protected routes, malformed ObjectId, unmapped valid ObjectId, invalid email, missing required fields, duplicate records, and out-of-range numeric values.
 
 ### Case matrix
 
 | ID | Test | Expected result |
 | --- | --- | --- |
 | TC-P01 | `GET /health` | HTTP 200, `status: ok`, `database: connected` |
-| TC-P02 | `POST /students` | HTTP 201 with a generated ObjectId |
+| TC-A01 | Anonymous `GET /students` | HTTP 401 |
+| TC-P02 | Authenticated `POST /students` | HTTP 201 with a generated ObjectId |
 | TC-N01 | Duplicate student email | HTTP 400 with uniform `{ success: false, message }` response |
 | TC-N02 | Age `0` and `150` | HTTP 400 for both boundary violations |
 | TC-P03 | `POST /students/bulk-delete` | HTTP 200 with `deletedCount` |
@@ -314,11 +353,13 @@ Handled cases include duplicate keys (`11000`), Mongoose `ValidationError`, and 
 ### Positive and negative test sequence
 
 1. Verify system health and MongoDB connectivity.
-2. Create a unique student and assert HTTP 201.
-3. Repeat the same email and assert HTTP 400.
-4. Exercise age boundary values `0` and `150` and assert HTTP 400.
-5. Query with `search`, `page`, and `limit`, then assert structured pagination metadata.
-6. Delete the created student through the bulk-delete endpoint and assert HTTP 200.
-7. Verify malformed and unmapped ObjectIds produce HTTP 400 and 404 respectively.
-8. Confirm unavailable inventory and out-of-range marks are rejected with HTTP 400.
-9. Exit with status `1` if any test fails; otherwise exit with status `0`.
+2. Log in with an account that has student-management permission.
+3. Verify anonymous student access is rejected with HTTP 401.
+4. Create a unique student using the bearer token and assert HTTP 201.
+5. Repeat the same email and assert HTTP 400.
+6. Exercise age boundary values `0` and `150` and assert HTTP 400.
+7. Query with `search`, `page`, and `limit`, then assert structured pagination metadata.
+8. Delete the created student through the bulk-delete endpoint and assert HTTP 200.
+9. Verify malformed and unmapped ObjectIds produce HTTP 400 and 404 respectively.
+10. Confirm unavailable inventory and out-of-range marks are rejected with HTTP 400.
+11. Exit with status `1` if any test fails; otherwise exit with status `0`.

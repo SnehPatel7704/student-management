@@ -13,7 +13,7 @@ export default function FilterToolbar({
           <input className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-cyan-700 focus:bg-white focus:ring-2 focus:ring-cyan-700/10" onChange={(event) => onSearch(event.target.value)} placeholder="Search name, email, course..." type="search" value={search} />
         </label>
         <div aria-label="Filter by course" className="flex max-w-full gap-1 overflow-x-auto pb-0.5">
-          {['All courses', ...courses].map((course) => <button aria-pressed={selectedCourse === course} className={`shrink-0 rounded-full px-3 py-2 text-[10px] font-medium transition ${selectedCourse === course ? 'bg-cyan-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} key={course} onClick={() => onCourse(course)} type="button">{course}</button>)}
+          {['All courses', ...new Set(courses.filter((course) => course !== 'All courses'))].map((course) => <button aria-pressed={selectedCourse === course} className={`shrink-0 rounded-full px-3 py-2 text-[10px] font-medium transition ${selectedCourse === course ? 'bg-cyan-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} key={course} onClick={() => onCourse(course)} type="button">{course}</button>)}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">

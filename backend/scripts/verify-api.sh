@@ -4,6 +4,9 @@ set -u
 BASE_URL="${BASE_URL:-http://localhost:5000}"
 RUN_ID="$(date +%s%N)"
 EMAIL="vv-${RUN_ID}@example.com"
+API_EMAIL="${API_EMAIL:-${SUPER_ADMIN_EMAIL:-}}"
+API_PASSWORD="${API_PASSWORD:-${SUPER_ADMIN_PASSWORD:-}}"
+AUTH_HEADER=""
 STUDENT_ID=""
 BOOK_ID=""
 FAILURES=0
@@ -46,6 +49,7 @@ http_assert() {
   local status
   status=$(curl -sS -o "$output_file" -w '%{http_code}' -X "$method" \
     -H 'Content-Type: application/json' \
+    -H "$AUTH_HEADER" \
     --data "$payload" "$BASE_URL$path")
   if [[ "$status" == "$expected" ]]; then
     log_result PASS "$test_name" "HTTP ${status}; $(cat "$output_file")"
@@ -63,9 +67,31 @@ else
   log_result FAIL TC-P01 "Expected HTTP 200 with status ok and database connected"
 fi
 
+if [[ -z "$API_EMAIL" || -z "$API_PASSWORD" ]]; then
+  printf 'Set API_EMAIL and API_PASSWORD (or SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD) for authenticated API checks.\n' >&2
+  exit 2
+fi
+
+anonymous_status=$(curl -sS -o "$TEMP_DIR/anonymous.json" -w '%{http_code}' "$BASE_URL/students")
+assert_status TC-A01 401 "$anonymous_status" "protected student list denies anonymous access"
+
+login_status=$(curl -sS -o "$TEMP_DIR/login.json" -w '%{http_code}' -X POST "$BASE_URL/auth/login" \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode "email=$API_EMAIL" \
+  --data-urlencode "password=$API_PASSWORD")
+if [[ "$login_status" == "200" ]]; then
+  AUTH_TOKEN=$(node -e "const fs=require('fs'); const r=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); if(!r.token) process.exit(1); process.stdout.write(r.token)" "$TEMP_DIR/login.json")
+  AUTH_HEADER="Authorization: Bearer $AUTH_TOKEN"
+  log_result PASS TC-A02 "Authorized login returned HTTP 200"
+else
+  log_result FAIL TC-A02 "Expected login HTTP 200, received HTTP $login_status"
+  exit 1
+fi
+
 # TC-P02: Student Creation
 create_response=$(curl -sS -o "$TEMP_DIR/create.json" -w '%{http_code}' -X POST "$BASE_URL/students" \
   -H 'Content-Type: application/json' \
+  -H "$AUTH_HEADER" \
   -d "{\"name\":\"Vandana Verifier\",\"email\":\"$EMAIL\",\"course\":\"CS101\",\"age\":22}")
 if [[ "$create_response" == "201" ]]; then
   STUDENT_ID=$(node -e "const fs=require('fs'); const r=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); if(!r._id) process.exit(1); process.stdout.write(r._id)" "$TEMP_DIR/create.json")
@@ -82,6 +108,7 @@ fi
 if [[ -n "$STUDENT_ID" ]]; then
   duplicate_status=$(curl -sS -o "$TEMP_DIR/duplicate.json" -w '%{http_code}' -X POST "$BASE_URL/students" \
     -H 'Content-Type: application/json' \
+    -H "$AUTH_HEADER" \
     -d "{\"name\":\"Vandana Verifier Duplicate\",\"email\":\"$EMAIL\",\"course\":\"CS101\",\"age\":23}")
   if [[ "$duplicate_status" == "400" ]] && grep -q '"success"[[:space:]]*:[[:space:]]*false' "$TEMP_DIR/duplicate.json"; then
     log_result PASS TC-N01 "Duplicate email rejected with HTTP 400"
@@ -96,6 +123,7 @@ fi
 for age in 150 0; do
   age_status=$(curl -sS -o "$TEMP_DIR/age-$age.json" -w '%{http_code}' -X POST "$BASE_URL/students" \
     -H 'Content-Type: application/json' \
+    -H "$AUTH_HEADER" \
     -d "{\"name\":\"Age Boundary\",\"email\":\"age-$age-$RUN_ID@example.com\",\"course\":\"CS101\",\"age\":$age}")
   if [[ "$age_status" == "400" ]] && grep -q '"success"[[:space:]]*:[[:space:]]*false' "$TEMP_DIR/age-$age.json"; then
     log_result PASS "TC-N02 age $age" "Schema boundary rejected with HTTP 400"
@@ -105,7 +133,7 @@ for age in 150 0; do
 done
 
 # TC-P04: Query and Pagination
-query_status=$(curl -sS -o "$TEMP_DIR/query.json" -w '%{http_code}' "$BASE_URL/students?page=1&limit=5&search=Vandana")
+query_status=$(curl -sS -o "$TEMP_DIR/query.json" -w '%{http_code}' -H "$AUTH_HEADER" "$BASE_URL/students?page=1&limit=5&search=Vandana")
 if [[ "$query_status" == "200" ]] && grep -q '"pagination"' "$TEMP_DIR/query.json" && grep -q '"total"' "$TEMP_DIR/query.json" && grep -q '"totalPages"' "$TEMP_DIR/query.json"; then
   log_result PASS TC-P04 "Pagination metadata returned with HTTP 200"
 else
@@ -116,6 +144,7 @@ fi
 if [[ -n "$STUDENT_ID" ]]; then
   bulk_delete_status=$(curl -sS -o "$TEMP_DIR/delete.json" -w '%{http_code}' -X POST "$BASE_URL/students/bulk-delete" \
     -H 'Content-Type: application/json' \
+    -H "$AUTH_HEADER" \
     -d "{\"ids\":[\"$STUDENT_ID\"]}")
   if [[ "$bulk_delete_status" == "200" ]] && grep -q '"deletedCount"' "$TEMP_DIR/delete.json"; then
     log_result PASS TC-P03 "Bulk delete returned HTTP 200"
@@ -127,7 +156,7 @@ else
 fi
 
 # TC-N03: Malformed ObjectId
-malformed_status=$(curl -sS -o "$TEMP_DIR/malformed.json" -w '%{http_code}' "$BASE_URL/students/invalid_id")
+malformed_status=$(curl -sS -o "$TEMP_DIR/malformed.json" -w '%{http_code}' -H "$AUTH_HEADER" "$BASE_URL/students/invalid_id")
 if [[ "$malformed_status" == "400" ]] && grep -q 'success.*false' "$TEMP_DIR/malformed.json"; then
   log_result PASS TC-N03 "Malformed ObjectId handled with HTTP 400"
 else
@@ -138,6 +167,7 @@ fi
 unmapped_id="000000000000000000000001"
 update_status=$(curl -sS -o "$TEMP_DIR/not-found.json" -w '%{http_code}' -X PUT "$BASE_URL/students/$unmapped_id" \
   -H 'Content-Type: application/json' \
+  -H "$AUTH_HEADER" \
   -d '{"name":"Unmapped Student"}')
 if [[ "$update_status" == "404" ]] && grep -q 'success.*false' "$TEMP_DIR/not-found.json"; then
   log_result PASS TC-N04 "Unmapped valid ObjectId returns HTTP 404"
@@ -148,11 +178,13 @@ fi
 # Additional negative safety checks for inventory and exam bounds
 book_status=$(curl -sS -o "$TEMP_DIR/book.json" -w '%{http_code}' -X POST "$BASE_URL/books" \
   -H 'Content-Type: application/json' \
+  -H "$AUTH_HEADER" \
   -d "{\"isbn\":\"VANDANA-BOOK-$RUN_ID\",\"title\":\"Verification Copy\",\"author\":\"Campusdesk\",\"category\":\"Test\",\"totalCopies\":1,\"availableCopies\":0}")
 if [[ "$book_status" == "201" ]]; then
   BOOK_ID=$(node -e "const fs=require('fs'); const r=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); if(!r._id) process.exit(1); process.stdout.write(r._id)" "$TEMP_DIR/book.json")
   issue_status=$(curl -sS -o "$TEMP_DIR/inventory.json" -w '%{http_code}' -X POST "$BASE_URL/library/issue" \
     -H 'Content-Type: application/json' \
+    -H "$AUTH_HEADER" \
     -d "{\"book\":\"$BOOK_ID\",\"student\":\"000000000000000000000002\",\"dueDate\":\"2030-01-01T00:00:00.000Z\"}")
   if [[ "$issue_status" == "400" ]] && grep -q 'No copies are available' "$TEMP_DIR/inventory.json"; then
     log_result PASS TC-N05 "Inventory safety rejects zero available copies with HTTP 400"
@@ -165,6 +197,7 @@ fi
 
 grade_status=$(curl -sS -o "$TEMP_DIR/grade.json" -w '%{http_code}' -X POST "$BASE_URL/grades" \
   -H 'Content-Type: application/json' \
+  -H "$AUTH_HEADER" \
   -d '{"student":"000000000000000000000003","course":"000000000000000000000004","examType":"Final","marksObtained":101,"maxMarks":100}')
 if [[ "$grade_status" == "400" ]] && grep -q 'success.*false' "$TEMP_DIR/grade.json"; then
   log_result PASS TC-N06 "Grade boundary rejects marks above maxMarks with HTTP 400"
